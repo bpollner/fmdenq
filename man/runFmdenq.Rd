@@ -36,8 +36,8 @@ each list element; see examples.}
 packakge \code{\link[lme4]{lme4}} be used for calculating the
 \code{\link[psych]{ICC}} via package \code{\link{psych}}.}
 
-\item{verbose}{Logical, if the range of the values of each individual column
-should be reported. Defaults to TRUE.}
+\item{verbose}{Logical, if various status reports / feedback should be given.
+Defaults to TRUE.}
 
 \item{fnOut}{Character length one. The filename (without the ending '.xlsx')
 of the xlsx file where the statistics results will be saved to.}

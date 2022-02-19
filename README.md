@@ -16,12 +16,12 @@ For calculating the resp. ICC, function `ICC` from package `psych` is used.
 Download from github:
 ```
 library(devtools)
-install_github(repo="bpollner/fmdenq", ref="master")
+install_github(repo="bpollner/fmdenq", ref="main")
 ```
 
 ## Usage
 ### Set up example
-First copy the example folder `FMD` to your desktop:
+First copy the example folder 'FMD' to your desktop:
 ```
 library(fmdenq)
 to <- "~/desktop"
@@ -29,7 +29,7 @@ from <- paste0(path.package("fmdenq"), "/examples/FMD")
 file.copy(from, to, recursive = TRUE) 
 ```
 ### Prepare Folder Structure
-The folder `FMD` living on your desktop can be, in this example, the home-folder of a single experiment / measurement series.
+The folder 'FMD' living on your desktop can be, in this example, the home-folder of a single experiment / measurement series.
 Open the R-Studio project called 'FMD' in this folder. As can be seen in the file `script.R`, execute the following code:
 ```
 prepare()
@@ -59,6 +59,7 @@ res <- calcIntraInter(fmdf)
 ```
 res <- runFmdenq()
 ```
+Please see ```?runFmdenq``` for further information on input and output parameters.
 
 ### Inspect Results
 Go to the folder 'results_stat' and inspect the xlsx-file therein.

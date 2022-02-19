@@ -390,6 +390,8 @@ calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, ver
 #' \code{\link[psych]{ICC}} from package \code{\link{psych}} is used.
 #' @inheritParams importData
 #' @inheritParams calcIntraInter
+#' @param verbose Logical, if various status reports / feedback should be given.
+#' Defaults to TRUE.
 #' @examples
 #' \dontrun{
 #' runFmdenq()

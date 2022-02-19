@@ -3,7 +3,7 @@
 \docType{package}
 \name{fmdenq}
 \alias{fmdenq}
-\title{Intra- and Interclass Correlation Coefficients for FMD data.}
+\title{Intra- and Interclass Correlation Coefficients for FMD Data.}
 \description{
 Package `fmdenq` imports FMD result data from a predefined xlsx
 file, calculates intra- and interclass correlation coefficients on some
