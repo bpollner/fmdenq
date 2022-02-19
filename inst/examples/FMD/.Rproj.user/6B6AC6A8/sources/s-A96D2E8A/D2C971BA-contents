@@ -1,0 +1,9 @@
+library(psych)
+?ICC
+
+library(irr) # for quantitative data !!!
+?irr::icc
+
+library(psy) # not so nice
+?psy::icc
+

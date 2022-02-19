@@ -1,0 +1,18 @@
+{
+    "type": [
+        0,
+        1,
+        2,
+        0,
+        1,
+        2
+    ],
+    "data": [
+        "> ",
+        "devtools::load_all(\".\")",
+        "\u001B[36mℹ\u001B[39m Loading \u001B[34m\u001B[34mfmdenq\u001B[34m\u001B[39m\n",
+        "> ",
+        "devtools::load_all(\".\")",
+        "\u001B[36mℹ\u001B[39m Loading \u001B[34m\u001B[34mfmdenq\u001B[34m\u001B[39m\n\nRestarting R session...\n\n"
+    ]
+}

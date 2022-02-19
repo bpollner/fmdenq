@@ -1,0 +1,22 @@
+#' @title Intra- and Interclass Correlation Coefficients for FMD Data.
+#' @description Package `fmdenq` imports FMD result data from a predefined xlsx
+#' file, calculates intra- and interclass correlation coefficients on some
+#' predefined and some optional custom data groupings / splittings, and saves
+#' the statistics results to an xlsx file.
+#' @details For calculating the resp. ICC, function \code{\link[psych]{ICC}}
+#' from package \code{\link{psych}} is used.
+#' @section CAVE: 'fmdenq' is "strictly BETA" and under development, we are in
+#' the process of defining the data acquisition protocol and custom-tailoring
+#' the pre-build groupings for data analysis.
+#' @section Links: Please see \url{https://bpollner.github.io/fmdenq/} for a
+#' walk through; bug reports can be made at
+#' \url{https://github.com/bpollner/fmdenq/issues}.
+#' @author Bernhard Pollner, Johannes Bernard
+#' @section Maintainer: Bernhard Pollner <bernhard.pollner@@mac.com>
+# #' @importFrom utils str
+# #' @importFrom easycsv choose_dir
+#' @section Important functions: \code{\link{importData}},
+#' \code{\link{calcIntraInter}},  \code{\link{runFmdenq}}
+#' @docType package
+#' @name fmdenq
+NULL
