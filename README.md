@@ -18,7 +18,7 @@ Download from github:
 library(devtools)
 install_github(repo="bpollner/fmdenq", ref="main")
 ```
-
+*** 
 ## Usage
 ### Set up example
 First copy the example folder 'FMD' to your desktop:
