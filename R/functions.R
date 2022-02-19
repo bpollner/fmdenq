@@ -313,6 +313,53 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
 	return(out)
 } # EOF
 
+addWorkbookStyles <- function(wb, resDf, sheetName) { 
+	grayCol <- "gray46"
+	#
+	uniSplit <- unique(resDf$Split)
+	nrCols <- aaa <- length(uniSplit)
+	if (nrCols > 9) {
+		singlePool <- RColorBrewer::brewer.pal(9, "Pastel1")
+		pastColsPool <- rep(singlePool, 20) # gives 180 (repeating) colors. Should be enough.
+	} else {
+		if (nrCols < 3) {aaa <- 3}
+		pastColsPool <- RColorBrewer::brewer.pal(aaa, "Pastel1") # we have to take minium 3 (do not know why.)
+	} # end else
+	#
+	for (i in 1: length(uniSplit)) {
+    	indRows <- which(resDf$Split == uniSplit[i])
+    	fgFillStyle <- openxlsx::createStyle(fgFill=pastColsPool[i])
+		openxlsx::addStyle(wb, sheet=sheetName, fgFillStyle, rows=indRows+1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)    	
+	} # end for i 
+	#	
+	headerStyle <- openxlsx::createStyle(textDecoration="bold")
+	openxlsx::addStyle(wb, sheet=sheetName, headerStyle, rows=1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)
+	#
+	grayTextStyle <- openxlsx::createStyle(fontColour=grayCol)
+	openxlsx::addStyle(wb, sheet=sheetName, grayTextStyle, rows=(1:nrow(resDf))+1, cols = 7:ncol(resDf), gridExpand=TRUE, stack=TRUE)
+	#
+	openxlsx::setColWidths(wb, sheet=sheetName, cols = 1:ncol(resDf), widths = "auto")
+	#	
+	return(wb)
+} # EOF
+
+addWBInfoStyles <- function(wb) {
+	headerStyle <- openxlsx::createStyle(textDecoration="bold")
+	openxlsx::addStyle(wb, sheet="Info", headerStyle, rows=1, cols = 1:2, gridExpand=TRUE, stack=TRUE)
+	openxlsx::setColWidths(wb, sheet="Info", cols = 1:2, widths = "auto")
+	return(wb)
+} # EOF
+
+createInfoDf <- function() {
+	allMtId <- fmdenqEnv$allMuscleTestIDs
+	allTherId <- fmdenqEnv$allTherapistIDs
+	allPatId <- fmdenqEnv$allPatientIDs
+	#
+	outDf <- data.frame(c("Patient_ID", "Therapist_ID", "MuscleTest_ID"), c(paste(allPatId, collapse=", "), paste(allTherId, collapse=", "), paste(allMtId, collapse=", ") ))
+	colnames(outDf) <- c("Column Name", "All Values")
+	return(outDf)
+} # EOF
+
 #' @title Calculate Intra- and Interclass Correlation Coefficients
 #' @description Takes the dataset as provided in argument 'fmddf' and calculates
 #' intra- and interclass correlation coefficients for some pre-defined and some
@@ -353,6 +400,7 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
 #' @export
 calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, verbose=TRUE, fnOut="results_stat", toXls=TRUE) {
 	exportFolderName <- "results_stat"
+	wsZoom <- 140
 	#
 	if (verbose) {
 		cat("Calculating intra-rater statistics ... \n")
@@ -366,10 +414,18 @@ calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, ver
 	# export to xlsx
 	if (toXls) {
 		wb <- openxlsx::createWorkbook("IntraInter")
-		openxlsx::addWorksheet(wb, sheetName="Intra")
-		openxlsx::addWorksheet(wb, sheetName="Inter")
+		openxlsx::addWorksheet(wb, sheetName="Intra", zoom=wsZoom)
+		openxlsx::addWorksheet(wb, sheetName="Inter", zoom=wsZoom)
+		openxlsx::addWorksheet(wb, sheetName="Info", zoom=wsZoom)		
+		#
 		openxlsx::writeData(wb, sheet="Intra", intraDf)
 		openxlsx::writeData(wb, sheet="Inter", interDf)
+		openxlsx::writeData(wb, sheet="Info", createInfoDf())
+		#
+		wb <- addWorkbookStyles(wb, intraDf, "Intra")
+		wb <- addWorkbookStyles(wb, interDf, "Inter")
+		wb <- addWBInfoStyles(wb)
+		#
 		filename <-  paste0(exportFolderName, "/", fnOut, ".xlsx")
 		openxlsx::saveWorkbook(wb, filename, overwrite = TRUE)
 		if (verbose) {
