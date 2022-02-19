@@ -32,6 +32,7 @@ file.copy(from, to, recursive = TRUE)
 The folder 'FMD' living on your desktop can be, in this example, the home-folder of a single experiment / measurement series.
 Open the R-Studio project called 'FMD' in this folder. As can be seen in the file `script.R`, execute the following code:
 ```
+library(fmdenq)
 prepare()
 ````
 This is generating two folders named 'results_fmd' and 'results_stat', holding the results from the FMD-tests and the statistics results, respectively. 

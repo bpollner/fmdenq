@@ -372,6 +372,9 @@ calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, ver
 		openxlsx::writeData(wb, sheet="Inter", interDf)
 		filename <-  paste0(exportFolderName, "/", fnOut, ".xlsx")
 		openxlsx::saveWorkbook(wb, filename, overwrite = TRUE)
+		if (verbose) {
+ 			cat(paste0("Statistics results saved under '", basename(filename), "'.\n"))
+		}
 	} # end toXls
 	#
 	return(invisible(list(intra=intraDf, inter=interDf)))
