@@ -151,7 +151,8 @@ calcICC <- function(reshDf, type, useLmer = TRUE) { # ICC2 or ICC3
 	icc <- res[ind, "ICC"]
 	pVal <- res[ind, "p"]
 	nrJ <- icRes$n.judge
-	return(list( type=type, icc=icc, pVal=pVal, nrJ=nrJ))
+	nrObs <- icRes$n.obs
+	return(list( type=type, icc=icc, pVal=pVal, nrJ=nrJ, nrObs=nrObs))
 } # EOF
 
 assignPValChar <- function(pv) {
@@ -174,6 +175,7 @@ makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
 	pVal <- signif(iccList$pVal, rnd)
 	pValChar <- assignPValChar(pVal)
 	nrJ <- iccList$nrJ
+	nrObs <- iccList$nrObs
 	#
 	if (identical(muTe, fmdenqEnv$allMuscleTestIDs)) { # has been assigned during data import
 		muTeChar <- "all"
@@ -193,14 +195,13 @@ makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
 		patiChar <- paste(pati, collapse=", ")
 	} # end else
 	#
-	out <- data.frame(therChar, patiChar, muTeChar, icc, pValChar, pVal, iccType, nrJ, useLmer)
-	colnames(out) <- c("Therapist", "Patient", "MuscleTest", "ICC", "sig.", "p-value", "Type", "nrJ", "lmer")
+	out <- data.frame(therChar, patiChar, muTeChar, icc, pValChar, pVal, iccType, nrJ, nrObs, useLmer)
+	colnames(out) <- c("Therapist", "Patient", "MuscleTest", "ICC", "sig.", "p-value", "Type", "nrJ", "nrObs", "lmer")
 	return(out)
 } # EOF
 
 # for INTRA class, --> intra-rater   split by therapist
-
-intraRater <- function(fmddf, exclOneMT = FALSE, lmer=TRUE) {
+intraRater <- function(fmddf, exclOneMT = FALSE, inclOneMT=TRUE, lmer=TRUE) {
 	#
 	fnTher <- function(datf, lmer) {
 		plyr::ddply(datf, .variables=c("Therapist_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-1]
@@ -209,39 +210,60 @@ intraRater <- function(fmddf, exclOneMT = FALSE, lmer=TRUE) {
 		plyr::ddply(datf, .variables=c("Therapist_ID", "Patient_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-(1:2)]
 	} # EOIF
 	#
+	fnTherSiMu <- function(datf, lmer) {
+		plyr::ddply(datf, .variables=c("Therapist_ID", "MuscleTest_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-(1:2)]
+	} # EOIF
+	#
+	
+	## split by therapist; by therapist and patient ##
 	dfTher <- fnTher(fmddf, lmer)
 	dfTher$Split <- "Th"
 	dfTherPat <- fnTherPat(fmddf, lmer)
 	dfTherPat$Split <- "ThPa"
 	#
+	
+	## split by therapist and include only one muscle test
+	dfTherSiMu <- NULL
+	if (inclOneMT) {
+		dfTherSiMu <- fnTherSiMu(fmddf, lmer)
+		dfTherSiMu$Split <- "ThSiMu"
+	} # end if inclOneMT
+	#
+	
+	## Exclude one muscle test only ##
 	dfTherMu <- dfTherPatMu <- NULL
 	if (exclOneMT) {
 		muTe <- sort(unique(fmddf$MuscleTest_ID))
 		for (i in 1:length(muTe)) {
 			fmdSel <- ssc(fmddf, "MuscleTest_ID", muTe[i], include=FALSE)
-			aa <- fnTher(fmdSel, lmer)
-			dfTherMu <- rbind(dfTherMu, aa)
-			bb <- fnTherPat(fmdSel, lmer)
-			dfTherPatMu <- rbind(dfTherPatMu, bb)
+			dfTherMu <- rbind(dfTherMu, fnTher(fmdSel, lmer))
+			dfTherPatMu <- rbind(dfTherPatMu, fnTherPat(fmdSel, lmer))
 		} # end for i
-		dfTherMu$Split <- "ThMu"
-		dfTherPatMu$Split <- "ThPaMu"
+		dfTherMu$Split <- "ThMuex"
+		dfTherPatMu$Split <- "ThPaMuex"
 	} # end if (exclOneMT)
 	#
-	out <- rbind(dfTher, dfTherPat, dfTherMu, dfTherPatMu)
+	
+	out <- rbind(dfTher, dfTherPat, dfTherSiMu, dfTherMu, dfTherPatMu)
 	return(out)
 } # EOF
 
 # ther.sub  list, can contain the values of Therapist_ID to be used for sub-grouping (one subgroup per list-element)
-interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
-
-	## first all in ##
-	dfAll <- makeSegment(fmddf, "ICC2", useLmer=lmer)
-	dfAll$Split <- "No"
+interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, inclOneMT=TRUE, lmer=TRUE) {
 	#
 	fnPat <- function(datf, lmer) {
 		plyr::ddply(datf, .variables=c("Patient_ID"), .fun=makeSegment, iccType="ICC2", useLmer=lmer)[,-1]
 	} # EOIF
+	#
+	fnMuscle <- function(datf, lmer) {
+		plyr::ddply(datf, .variables=c("MuscleTest_ID"), .fun=makeSegment, iccType="ICC2", useLmer=lmer)[,-1]
+	} # EOIF
+	#
+	
+	## first all in ##
+	dfAll <- makeSegment(fmddf, "ICC2", useLmer=lmer)
+	dfAll$Split <- "No"
+	#
 	dfPat <- fnPat(fmddf, lmer)
 	dfPat$Split <- "Pa"
 	#
@@ -258,14 +280,40 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
 				indCol <- c(indCol, aa) # collect together all the indices to keep
 			} # end for k (going through the values)
 			fmdSel <- fmddf[indCol,]
-			aa <- makeSegment(fmdSel, "ICC2", useLmer=lmer)
-			dfAllTherSub <- rbind(dfAllTherSub, aa)
-			bb <- fnPat(fmdSel, lmer)
-			dfPatTherSub <- rbind(dfPatTherSub, bb)
+			dfAllTherSub <- rbind(dfAllTherSub, makeSegment(fmdSel, "ICC2", useLmer=lmer))
+			dfPatTherSub <- rbind(dfPatTherSub, fnPat(fmdSel, lmer))
 		} # end for i (going through the list elements)
 		dfAllTherSub$Split <- "Thsg"
 		dfPatTherSub$Split <- "PaThsg"
 	} # end !is.null (ther.sub)
+	#
+	
+	## Include only one muslce test ##		# i.e. group by MuscleTest_ID 
+	# all in, only grouped by single muscle test
+	dfAllSiMu <- NULL
+	if (inclOneMT) {
+		dfAllSiMu <- fnMuscle(fmddf, lmer)
+		dfAllSiMu$Split <- "SiMu"
+	} # end if inclOneMT
+	#
+	
+	## Combination of single muscle test and therapist subgrouping  ##
+	dfTherSubSiMu <- NULL
+	if (!is.null(ther.sub) & inclOneMT) {
+		# XXX to do: check if all the list elements are valid values present in the dataset
+		for (i in 1: length(ther.sub)) {
+			vals <- ther.sub[[i]]
+			indCol <- NULL
+			for (k in 1: length(vals)) {
+				aa <- which(fmddf$Therapist_ID == vals[k])
+				indCol <- c(indCol, aa) # collect together all the indices to keep
+			} # end for k (going through the values)
+			fmdSel <- fmddf[indCol,] # a subselection by therapist subgroup
+			# currently no additional subgrouping by patient or patient subgroups, --> not enougth data, this better to do via an extra function focusing on single muscle tests
+			dfTherSubSiMu <- rbind(dfTherSubSiMu, fnMuscle(fmdSel, lmer))
+		} # end for i (going through the ther.sub list elements)
+		dfTherSubSiMu$Split <- "ThsgSiMu"
+	} # end if (!is.null(ther.sub) & inclOneMT)		
 	#
 
 	## Exclude one muscle test ##
@@ -274,13 +322,11 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
 		muTe <- sort(unique(fmddf$MuscleTest_ID))
 		for (i in 1:length(muTe)) {
 			fmdSel <- ssc(fmddf, "MuscleTest_ID", muTe[i], include=FALSE)
-			aa <- makeSegment(fmdSel, "ICC2", useLmer=lmer)
-			dfAllMu <- rbind(dfAllMu, aa)
-			bb <- fnPat(fmdSel, lmer)
-			dfPatMu <- rbind(dfPatMu, bb)
+			dfAllMu <- rbind(dfAllMu, makeSegment(fmdSel, "ICC2", useLmer=lmer))
+			dfPatMu <- rbind(dfPatMu, fnPat(fmdSel, lmer))
 		} # end for i
-		dfAllMu$Split <- "Mu"
-		dfPatMu$Split <- "PaMu"
+		dfAllMu$Split <- "Muex"
+		dfPatMu$Split <- "PaMuex"
 	} # end if (exclOneMT)
 	#
 
@@ -299,18 +345,54 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, lmer=TRUE) {
 			muTe <- sort(unique(fmdSel$MuscleTest_ID))
 			for (m in 1:length(muTe)) {
 				fmdSel2 <- ssc(fmdSel, "MuscleTest_ID", muTe[m], include=FALSE)
-				aa <- makeSegment(fmdSel2, "ICC2", useLmer=lmer)
-				dfAllTherSubMu <- rbind(dfAllTherSubMu, aa)
-				bb <- fnPat(fmdSel2, lmer)
-				dfPatTherSubMu <- rbind(dfPatTherSubMu, bb)
+				dfAllTherSubMu <- rbind(dfAllTherSubMu, makeSegment(fmdSel2, "ICC2", useLmer=lmer))
+				dfPatTherSubMu <- rbind(dfPatTherSubMu, fnPat(fmdSel2, lmer))
 			} # end for m (going through the muscle tests)
 		} # end for i (going through the ther.sub list elements)
-		dfAllTherSubMu$Split <- "ThsgMu"
-		dfPatTherSubMu$Split <- "PaThsgMu"
+		dfAllTherSubMu$Split <- "ThsgMuex"
+		dfPatTherSubMu$Split <- "PaThsgMuex"
 	} # end if (!is.null(ther.sub) & exclOneMT)
 	#
-	out <- rbind(dfAll, dfPat, dfAllTherSub, dfPatTherSub, dfAllMu, dfPatMu, dfAllTherSubMu, dfPatTherSubMu)
+	out <- rbind(dfAll, dfPat, dfAllTherSub, dfPatTherSub, dfAllSiMu, dfTherSubSiMu, dfAllMu, dfPatMu, dfAllTherSubMu, dfPatTherSubMu)
 	return(out)
+} # EOF
+
+calcBottomBorders <- function(resDf, sheetName) {
+	ThsgChar <- "Thsg"
+	#
+	rowIndsInter <- rowIndsIntra <- NULL
+	#
+	if (sheetName == "Inter") {
+		## look for therapist subgroup boundaries ##
+		ind <- which(grepl(ThsgChar, resDf$Split))
+		uniTher <- unique(resDf$Therapist[ind])
+		rl <- rle(resDf$Therapist)
+		vals <- rl$values
+		lengs <- rl$lengths
+		csLengs <- cumsum(lengs)
+		for (i in 1: (length(uniTher)-1) ) {
+			ind <- which(vals == uniTher[i]) # more than one maybe
+			for (k in 1: length(ind)) {
+				rowIndsInter <- c(rowIndsInter, csLengs[ind[k]] ) ## hahaha . cumsum does the trick!
+			} # end for k
+		} # end for i
+	} # end if sheet Name == "Inter"
+	#
+	if (sheetName == "Intra") { # simply run rle over Therapist
+		uniTher <- unique(resDf$Therapist)
+		rl <- rle(resDf$Therapist)
+		vals <- rl$values
+		lengs <- rl$lengths
+		csLengs <- cumsum(lengs)
+		for (i in 1: (length(uniTher)) ) {
+			ind <- which(vals == uniTher[i]) # more than one maybe
+			for (k in 1: length(ind)) {
+				rowIndsIntra <- c(rowIndsIntra, csLengs[ind[k]] ) ## hahaha . cumsum does the trick!
+			} # end for k
+		} # end for i	
+	} # end if (sheetName == "Intra")
+	
+	return(c(rowIndsInter, rowIndsIntra))	
 } # EOF
 
 addWorkbookStyles <- function(wb, resDf, sheetName) { 
@@ -331,12 +413,15 @@ addWorkbookStyles <- function(wb, resDf, sheetName) {
     	fgFillStyle <- openxlsx::createStyle(fgFill=pastColsPool[i])
 		openxlsx::addStyle(wb, sheet=sheetName, fgFillStyle, rows=indRows+1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)    	
 	} # end for i 
-	#	
+	#
 	headerStyle <- openxlsx::createStyle(textDecoration="bold")
 	openxlsx::addStyle(wb, sheet=sheetName, headerStyle, rows=1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)
 	#
 	grayTextStyle <- openxlsx::createStyle(fontColour=grayCol)
 	openxlsx::addStyle(wb, sheet=sheetName, grayTextStyle, rows=(1:nrow(resDf))+1, cols = 7:ncol(resDf), gridExpand=TRUE, stack=TRUE)
+	#
+	borderStyle <- openxlsx::createStyle(border="bottom", borderColour=grayCol)
+	openxlsx::addStyle(wb, sheet=sheetName, borderStyle, rows=calcBottomBorders(resDf, sheetName)+1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)
 	#
 	openxlsx::setColWidths(wb, sheet=sheetName, cols = 1:ncol(resDf), widths = "auto")
 	#	
@@ -360,6 +445,31 @@ createInfoDf <- function() {
 	return(outDf)
 } # EOF
 
+generateSaveWorkbook <- function(intraDf, interDf, fnOut, verbose) {
+	exportFolderName <- "results_stat"
+	wsZoom <- 140
+	#
+	wb <- openxlsx::createWorkbook("IntraInter")
+	openxlsx::addWorksheet(wb, sheetName="Intra", zoom=wsZoom)
+	openxlsx::addWorksheet(wb, sheetName="Inter", zoom=wsZoom)
+	openxlsx::addWorksheet(wb, sheetName="Info", zoom=wsZoom)		
+	#
+	openxlsx::writeData(wb, sheet="Intra", intraDf)
+	openxlsx::writeData(wb, sheet="Inter", interDf)
+	openxlsx::writeData(wb, sheet="Info", createInfoDf())
+	#
+	wb <- addWorkbookStyles(wb, intraDf, "Intra")
+	wb <- addWorkbookStyles(wb, interDf, "Inter")
+	wb <- addWBInfoStyles(wb)
+	#
+	filename <-  paste0(exportFolderName, "/", fnOut, ".xlsx")
+	openxlsx::saveWorkbook(wb, filename, overwrite = TRUE)
+	#
+	if (verbose) {
+		cat(paste0("Statistics results saved under '", basename(filename), "'.\n"))
+	} # end if verbose
+} # EOF
+
 #' @title Calculate Intra- and Interclass Correlation Coefficients
 #' @description Takes the dataset as provided in argument 'fmddf' and calculates
 #' intra- and interclass correlation coefficients for some pre-defined and some
@@ -369,6 +479,8 @@ createInfoDf <- function() {
 #' @param fmddf A dataframe containing FMD data.
 #' @param exclOneMT Logical, if additional groupings with one muscle test
 #' excluded should be performed. Defaults to FALSE.
+#' @param inclOneMT Logical, if additional groupings with only one muscle 
+#' test included should be performed. Defaults to TRUE.
 #' @param ther.sub NULL or List. If left at the default NULL, no additional
 #' splitting with therapist subgroups is performed. Provide a list with
 #' n therapist IDs in each list element to calculate additional inter-rater
@@ -398,39 +510,19 @@ createInfoDf <- function() {
 #' }
 #' @seealso \code{\link{runFmdenq}}
 #' @export
-calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, verbose=TRUE, fnOut="results_stat", toXls=TRUE) {
-	exportFolderName <- "results_stat"
-	wsZoom <- 140
-	#
+calcIntraInter <- function(fmddf, exclOneMT=FALSE, inclOneMT=TRUE, ther.sub=NULL, lmer=TRUE, verbose=TRUE, fnOut="results_stat", toXls=TRUE) {
 	if (verbose) {
 		cat("Calculating intra-rater statistics ... \n")
 	}
-	intraDf <- intraRater(fmddf, exclOneMT, lmer)
+	intraDf <- intraRater(fmddf, exclOneMT, inclOneMT, lmer)
 	if (verbose) {
 		cat("Calculating inter-rater statistics ... \n")
 	}
-	interDf <- interRater(fmddf, ther.sub, exclOneMT, lmer)
+	interDf <- interRater(fmddf, ther.sub, exclOneMT, inclOneMT, lmer)
 	#
 	# export to xlsx
 	if (toXls) {
-		wb <- openxlsx::createWorkbook("IntraInter")
-		openxlsx::addWorksheet(wb, sheetName="Intra", zoom=wsZoom)
-		openxlsx::addWorksheet(wb, sheetName="Inter", zoom=wsZoom)
-		openxlsx::addWorksheet(wb, sheetName="Info", zoom=wsZoom)		
-		#
-		openxlsx::writeData(wb, sheet="Intra", intraDf)
-		openxlsx::writeData(wb, sheet="Inter", interDf)
-		openxlsx::writeData(wb, sheet="Info", createInfoDf())
-		#
-		wb <- addWorkbookStyles(wb, intraDf, "Intra")
-		wb <- addWorkbookStyles(wb, interDf, "Inter")
-		wb <- addWBInfoStyles(wb)
-		#
-		filename <-  paste0(exportFolderName, "/", fnOut, ".xlsx")
-		openxlsx::saveWorkbook(wb, filename, overwrite = TRUE)
-		if (verbose) {
- 			cat(paste0("Statistics results saved under '", basename(filename), "'.\n"))
-		}
+		generateSaveWorkbook(intraDf, interDf, fnOut, verbose)
 	} # end toXls
 	#
 	return(invisible(list(intra=intraDf, inter=interDf)))
@@ -458,7 +550,7 @@ calcIntraInter <- function(fmddf, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, ver
 #' }
 #' @seealso \code{\link{importData}}, \code{\link{calcIntraInter}}
 #' @export
-runFmdenq <- function(fnIn="results_fmd", selIn=FALSE, exclOneMT=FALSE, ther.sub=NULL, lmer=TRUE, verbose=TRUE, fnOut="results_stat", toXls=TRUE) {
+runFmdenq <- function(fnIn="results_fmd", selIn=FALSE, exclOneMT=FALSE, inclOneMT=TRUE, ther.sub=NULL, lmer=TRUE, verbose=TRUE, fnOut="results_stat", toXls=TRUE) {
 	fmddf <- importData(fnIn, selIn, verbose)
-	return(calcIntraInter(fmddf, exclOneMT, ther.sub, lmer, verbose, fnOut, toXls))
+	return(calcIntraInter(fmddf, exclOneMT, inclOneMT, ther.sub, lmer, verbose, fnOut, toXls))
 } # EOF

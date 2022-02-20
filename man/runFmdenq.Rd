@@ -8,6 +8,7 @@ runFmdenq(
   fnIn = "results_fmd",
   selIn = FALSE,
   exclOneMT = FALSE,
+  inclOneMT = TRUE,
   ther.sub = NULL,
   lmer = TRUE,
   verbose = TRUE,
@@ -25,6 +26,9 @@ Defaults to FALSE.}
 
 \item{exclOneMT}{Logical, if additional groupings with one muscle test
 excluded should be performed. Defaults to FALSE.}
+
+\item{inclOneMT}{Logical, if additional groupings with only one muscle 
+test included should be performed. Defaults to TRUE.}
 
 \item{ther.sub}{NULL or List. If left at the default NULL, no additional
 splitting with therapist subgroups is performed. Provide a list with
