@@ -6,8 +6,8 @@
 # setClassUnion(name="dfNull", members = c("data.frame", "NULL"))
 #
 setClass("fmddf", contains="data.frame")
-setClass("fmddf_reshInter", slots=c(type="character", nrReps="numeric"), contains="data.frame")
-setClass("fmddf_reshIntra", slots=c(type="character", nrReps="numeric"), contains="data.frame")
+setClass("fmddf_reshInter", slots=c(type="character", nrReps="numeric", therapist="character"), contains="data.frame")
+setClass("fmddf_reshIntra", slots=c(type="character", nrReps="numeric", therapist="character"), contains="data.frame")
 
 
 

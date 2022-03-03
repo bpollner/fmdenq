@@ -6,27 +6,32 @@
 \usage{
 showCalcICC(
   fmddf,
-  type = "ICC2",
-  lmer = FALSE,
+  expr = NULL,
+  resh = NULL,
   showData = TRUE,
-  showICC = TRUE
+  showICC = TRUE,
+  lmer = FALSE
 )
 }
 \arguments{
-\item{fmddf}{A data frame containing FMD data.}
+\item{fmddf}{A reshaped data frame containing FMD data as produced by 
+\code{\link{showGetData}}.}
 
-\item{type}{Character length one. Can be either 'ICC2' or 'ICC3'. Defaults to 
-'ICC2'.}
+\item{expr}{An expression defining the subset of data. If left at the default 
+NULL, no subset of the data is created, but he data is merely reshaped.}
 
-\item{lmer}{Logical. Should the \code{\link[lme4]{lmer}} function from
-packakge \code{\link[lme4]{lme4}} be used for calculating the
-\code{\link[psych]{ICC}} via package \code{\link{psych}}.}
+\item{resh}{Character length one. What type of reshape should be applied to 
+the output. Possible values are 'inter' and 'intra'.}
 
 \item{showData}{Logical, if the input-data should be printed as well. Defaults 
 to TRUE.}
 
 \item{showICC}{Logical, if the calculated ICC should be printed. Defaults to 
 TRUE.}
+
+\item{lmer}{Logical. Should the \code{\link[lme4]{lmer}} function from
+packakge \code{\link[lme4]{lme4}} be used for calculating the
+\code{\link[psych]{ICC}} via package \code{\link{psych}}.}
 }
 \value{
 An (invisible) data frame containing the results of the ICC calculation.

@@ -168,6 +168,7 @@ resh <- function(fmddf) {
 
 resh_Inter <- function(fmddf) {
 	fmddf <- resh(fmddf) # has all repetitions in extra columns
+	therId <- sort(unique(fmddf$Therapist_ID))
 	reps <- fmddf[, -(1:3), drop=FALSE] # keep only the numeric values
 	if (ncol(reps) > 1) { # so we have at least 2 repeated measurements
 		type <- "ICC2k"
@@ -181,7 +182,7 @@ resh_Inter <- function(fmddf) {
 	meanResh <- reshape2::melt(meanDf, id.vars=1:3, measure.vars=4)
 	meanResh <- reshape2::dcast(meanResh, Patient_ID  + MuscleTest_ID  ~ Therapist_ID)
 	#
-	out <- new("fmddf_reshInter", meanResh, type=type, nrReps=ncol(reps))
+	out <- new("fmddf_reshInter", meanResh, type=type, nrReps=ncol(reps), therapist=therId)
 	return(out)
 } # EOF
 
@@ -204,7 +205,7 @@ resh_Intra <- function(fmddf) {
 	cnsNew <- cns[-(1:2)] # has all the repetitions
 	cnsNew <- paste0(therId, "_", cnsNew)
 	colnames(fmddf) <- c(cnsOld, cnsNew)
-	return(new("fmddf_reshIntra", fmddf, type="ICC3", nrReps=ncol(fmddf)-2))
+	return(new("fmddf_reshIntra", fmddf, type="ICC3", nrReps=ncol(fmddf)-2, therapist=therId))
 } # EOF
 
 
@@ -231,9 +232,13 @@ resh_Intra <- function(fmddf) {
 #' expr <- expression(Patient_ID == "Pat#2" & Therapist_ID != "Ther#4")
 #' showGetData(fmddf, expr)
 #' }
-showGetData <- function(fmddf, expr=NULL, resh="inter", showData=TRUE) {
+showGetData <- function(fmddf, expr=NULL, resh=NULL, showData=TRUE) {
 	pv_resh <- c("inter", "intra")
 	#
+	if (is.null(resh)) {
+		stop("Please provide either 'inter' or 'intra' to the argument 'resh'", call.=FALSE)
+	} # end if
+
 	if (class(fmddf) != "fmddf") {
 		stop("Please provide an object of class 'fmddf' to the argument 'fmddf'.", call.=FALSE)
 	} # end if
@@ -266,14 +271,16 @@ showGetData <- function(fmddf, expr=NULL, resh="inter", showData=TRUE) {
 #' print the results and return them.
 #' @section CAVE: It is the users responsibility to decide if ICC2 or ICC3 is 
 #' appropriate for the provided data input. 
-#' @param fmddf A data frame containing FMD data.
-#' @param type Character length one. Can be either 'ICC2' or 'ICC3'. Defaults to 
-#' 'ICC2'.
+#' @param fmddf A reshaped data frame containing FMD data as produced by 
+#' \code{\link{showGetData}}.
 #' @param showICC Logical, if the calculated ICC should be printed. Defaults to 
 #' TRUE.
 #' @param showData Logical, if the input-data should be printed as well. Defaults 
 #' to TRUE.
-#' @param expr An expression XXX.
+#' @param expr An expression defining the subset of data. If left at the default 
+#' NULL, no subset of the data is created, but he data is merely reshaped.
+#' @param resh Character length one. What type of reshape should be applied to 
+#' the output. Possible values are 'inter' and 'intra'.
 #' @inheritParams calcIntraInter
 #' @return An (invisible) data frame containing the results of the ICC calculation.
 #' @examples
@@ -281,21 +288,44 @@ showGetData <- function(fmddf, expr=NULL, resh="inter", showData=TRUE) {
 #' XXX
 #' }
 #' @export
-showCalcICC <- function(fmddf, type="ICC2", lmer=FALSE, expr=NULL, showData=TRUE, showICC=TRUE) {
+showCalcICC <- function(fmddf, expr=NULL, resh=NULL, showData=TRUE, showICC=TRUE, lmer=FALSE) {
 	rndIcc <- 3
 	rndpVal <- 4
 	#
-	if (class(fmddf) != "fmddf_resh") {
-		fmddf <- resh(fmddf)
+	if (is.null(resh)) {
+		stop("Please provide either 'inter' or 'intra' to the argument 'resh'", call.=FALSE)
+	} # end if
+	if (! any(grepl("fmddf", class(fmddf)))) {
+		stop("Please provide an fmdenq data object to the argument 'fmddf'", call.=FALSE)
+	} #
+	if (is.expression(expr) & class(fmddf) != "fmddf") {
+		stop(paste0("Please provide an object of class 'fmddf' to the argument 'fmddf' in order to properly generate data subset"), call.=FALSE)
+	} #
+	if (!is.expression(expr) & ! is.null(expr)) {
+		stop("Please provide an expression to the argument 'expr'", call.=FALSE)
 	} # end if
 	#
-	iccList <- calcICC(fmddf, type, useLmer=lmer)
+	if (class(fmddf) == "fmddf") {
+		fmddf <- showGetData(fmddf, expr, resh, showData=FALSE) # here gets reshaped
+	} # end if
+	#
+	iccList <- calcICC(fmddf, useLmer=lmer)
 	icc <- round(iccList$icc, rndIcc)
 	pVal <- round(iccList$pVal, rndpVal)
 	nrJ <- iccList$nrJ
 	nrObs <- iccList$nrObs
-	out <- data.frame(icc, pVal, type, nrJ, nrObs, lmer)
-	colnames(out) <- c("ICC", "p-value", "Type", "nrJ", "nrObs", "lmer")
+	type <- fmddf@type
+	nrReps <- fmddf@nrReps
+	if (grepl("ICC2", type)) { # so we have INTER
+		#
+	} # end if
+	if (grepl("ICC3", type)) { # so we have INTRA
+		nrJ <- 1
+	} # end if
+	#
+	out <- data.frame(icc, pVal, type, nrJ, nrObs, nrReps, lmer)
+	colnames(out) <- c("ICC", "p-value", "Type", "nrJ", "nrOb", "nrRe", "lmer")
+	#	
 	if (showData) {
 		print(fmddf)
 		cat("\n")
@@ -307,18 +337,22 @@ showCalcICC <- function(fmddf, type="ICC2", lmer=FALSE, expr=NULL, showData=TRUE
 	return(invisible(out))
 } # EOF
 
-
-# type from the first column of the results data frame
-calcICC <- function(reshDf, type, useLmer = TRUE) { # ICC2 or ICC3
-#	reshDf <- resh(fmddf)
-	icRes <- psych::ICC(reshDf[,-(1:3)], lmer=useLmer)
+calcICC <- function(reshDf, useLmer = TRUE) { # ICC2 or ICC3
+	type <- reshDf@type
+	onlyData <- reshDf[, -c(1:2), drop=FALSE] # kick out Patient_ID and MuscleTest_ID
+	odul <- length(unique(as.numeric(as.matrix(onlyData, nrow=1)))) # only data unique length. odul. yea.
+	icRes <- psych::ICC(onlyData, lmer=useLmer)
 	res <- icRes$results
-	ind <- which(res$type == type)
+	ind <- which(res$type == type)  # type from the first column of the results data frame
 	icc <- res[ind, "ICC"]
 	pVal <- res[ind, "p"]
 	nrJ <- icRes$n.judge
 	nrObs <- icRes$n.obs
-	return(list( type=type, icc=icc, pVal=pVal, nrJ=nrJ, nrObs=nrObs))
+	if  (odul == 1) {
+		icc <- 1
+		pVal <- 0
+	}
+	return(list(type=type, icc=icc, pVal=pVal, nrJ=nrJ, nrObs=nrObs))
 } # EOF
 
 assignPValChar <- function(pv) {
@@ -330,21 +364,42 @@ assignPValChar <- function(pv) {
 	if (pv < 0.001 ) {return("***")}
 	} # EOF
 
-makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
+assignIccWord <- function(icc) {
+	if (is.nan(icc)) {return("NaN")}
+	if (icc < 0.5 ) {return("poor")}
+	if (icc >= 0.5 & icc < 0.75 ) {return("moderate")}
+	if (icc >= 0.75 & icc < 0.9 ) {return("good")}
+	if (icc >= 0.9 ) {return("excellent")}
+} # EOF
+
+makeSegment <- function(fmddf, reshType, useLmer=TRUE) {
 	rndPvalue <- 4
 	rndICC <- 3
 	#
-	reshDf <- resh(fmddf)
-	ther <- sort(unique(reshDf$Therapist_ID))
+	if (reshType == "inter") {
+		reshDf <- resh_Inter(fmddf)
+	} else { # so it must be intra
+		reshDf <- resh_Intra(fmddf)
+	} # end else 
+	
+	ther <- reshDf@therapist # comes already sorted
+	iccType <- reshDf@type
+	nrReps <- reshDf@nrReps
 	pati <- sort(unique(reshDf$Patient_ID))
 	muTe <- sort(unique(reshDf$MuscleTest_ID))
 	#
-	iccList <- calcICC(reshDf, iccType, useLmer)
+	iccList <- calcICC(reshDf, useLmer)
 	icc <- round(iccList$icc, rndICC)
 	pVal <- round(iccList$pVal, rndPvalue)
 	pValChar <- assignPValChar(pVal)
 	nrJ <- iccList$nrJ
 	nrObs <- iccList$nrObs
+	#
+	iccWord <- assignIccWord(icc)
+	#
+	if (grepl("ICC3", iccType)) { # so we have INTRA
+		nrJ <- 1
+	} # end if
 	#
 	if (identical(muTe, fmdenqEnv$allMuscleTestIDs)) { # has been assigned during data import
 		muTeChar <- "all"
@@ -364,8 +419,8 @@ makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
 		patiChar <- paste(pati, collapse=", ")
 	} # end else
 	#
-	out <- data.frame(therChar, patiChar, muTeChar, icc, pValChar, pVal, iccType, nrJ, nrObs, useLmer)
-	colnames(out) <- c("Therapist", "Patient", "MuscleTest", "ICC", "sig.", "p-value", "Type", "nrJ", "nrObs", "lmer")
+	out <- data.frame(therChar, patiChar, muTeChar, icc, iccWord, pValChar, pVal, iccType, nrJ, nrObs, nrReps, useLmer)
+	colnames(out) <- c("Therapist", "Patient", "MuscleTest", "ICC", "Rel.", "sig.", "p-value", "Type", "nrJ", "nrOb", "nrRe", "lmer")
 	return(out)
 } # EOF
 
@@ -373,14 +428,14 @@ makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
 intraRater <- function(fmddf, exclOneMT = FALSE, inclOneMT=TRUE, lmer=TRUE) {
 	#
 	fnTher <- function(datf, lmer) {
-		plyr::ddply(datf, .variables=c("Therapist_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-1]
+		plyr::ddply(datf, .variables=c("Therapist_ID"), .fun=makeSegment, reshType="intra", useLmer=lmer)[,-1]
 	} # EOIF
 	fnTherPat <- function(datf, lmer) {
-		plyr::ddply(datf, .variables=c("Therapist_ID", "Patient_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-(1:2)]
+		plyr::ddply(datf, .variables=c("Therapist_ID", "Patient_ID"), .fun=makeSegment, reshType="intra", useLmer=lmer)[,-(1:2)]
 	} # EOIF
 	#
 	fnTherSiMu <- function(datf, lmer) {
-		plyr::ddply(datf, .variables=c("Therapist_ID", "MuscleTest_ID"), .fun=makeSegment, iccType="ICC3", useLmer=lmer)[,-(1:2)]
+		plyr::ddply(datf, .variables=c("Therapist_ID", "MuscleTest_ID"), .fun=makeSegment, reshType="intra", useLmer=lmer)[,-(1:2)]
 	} # EOIF
 	#
 	
@@ -421,16 +476,16 @@ intraRater <- function(fmddf, exclOneMT = FALSE, inclOneMT=TRUE, lmer=TRUE) {
 interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, inclOneMT=TRUE, lmer=TRUE) {
 	#
 	fnPat <- function(datf, lmer) {
-		plyr::ddply(datf, .variables=c("Patient_ID"), .fun=makeSegment, iccType="ICC2", useLmer=lmer)[,-1]
+		plyr::ddply(datf, .variables=c("Patient_ID"), .fun=makeSegment, reshType="inter", useLmer=lmer)[,-1]
 	} # EOIF
 	#
 	fnMuscle <- function(datf, lmer) {
-		plyr::ddply(datf, .variables=c("MuscleTest_ID"), .fun=makeSegment, iccType="ICC2", useLmer=lmer)[,-1]
+		plyr::ddply(datf, .variables=c("MuscleTest_ID"), .fun=makeSegment, reshType="inter", useLmer=lmer)[,-1]
 	} # EOIF
 	#
 	
 	## first all in ##
-	dfAll <- makeSegment(fmddf, "ICC2", useLmer=lmer)
+	dfAll <- makeSegment(fmddf, "inter", useLmer=lmer)
 	dfAll$Split <- "No"
 	#
 	dfPat <- fnPat(fmddf, lmer)
@@ -449,7 +504,7 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, inclOneMT=TRUE, lm
 				indCol <- c(indCol, aa) # collect together all the indices to keep
 			} # end for k (going through the values)
 			fmdSel <- fmddf[indCol,]
-			dfAllTherSub <- rbind(dfAllTherSub, makeSegment(fmdSel, "ICC2", useLmer=lmer))
+			dfAllTherSub <- rbind(dfAllTherSub, makeSegment(fmdSel, "inter", useLmer=lmer))
 			dfPatTherSub <- rbind(dfPatTherSub, fnPat(fmdSel, lmer))
 		} # end for i (going through the list elements)
 		dfAllTherSub$Split <- "Thsg"
@@ -491,7 +546,7 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, inclOneMT=TRUE, lm
 		muTe <- sort(unique(fmddf$MuscleTest_ID))
 		for (i in 1:length(muTe)) {
 			fmdSel <- ssc(fmddf, "MuscleTest_ID", muTe[i], include=FALSE)
-			dfAllMu <- rbind(dfAllMu, makeSegment(fmdSel, "ICC2", useLmer=lmer))
+			dfAllMu <- rbind(dfAllMu, makeSegment(fmdSel, "inter", useLmer=lmer))
 			dfPatMu <- rbind(dfPatMu, fnPat(fmdSel, lmer))
 		} # end for i
 		dfAllMu$Split <- "Muex"
@@ -514,7 +569,7 @@ interRater <- function(fmddf, ther.sub=NULL, exclOneMT=FALSE, inclOneMT=TRUE, lm
 			muTe <- sort(unique(fmdSel$MuscleTest_ID))
 			for (m in 1:length(muTe)) {
 				fmdSel2 <- ssc(fmdSel, "MuscleTest_ID", muTe[m], include=FALSE)
-				dfAllTherSubMu <- rbind(dfAllTherSubMu, makeSegment(fmdSel2, "ICC2", useLmer=lmer))
+				dfAllTherSubMu <- rbind(dfAllTherSubMu, makeSegment(fmdSel2, "inter", useLmer=lmer))
 				dfPatTherSubMu <- rbind(dfPatTherSubMu, fnPat(fmdSel2, lmer))
 			} # end for m (going through the muscle tests)
 		} # end for i (going through the ther.sub list elements)
@@ -587,7 +642,7 @@ addWorkbookStyles <- function(wb, resDf, sheetName) {
 	openxlsx::addStyle(wb, sheet=sheetName, headerStyle, rows=1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)
 	#
 	grayTextStyle <- openxlsx::createStyle(fontColour=grayCol)
-	openxlsx::addStyle(wb, sheet=sheetName, grayTextStyle, rows=(1:nrow(resDf))+1, cols = 7:ncol(resDf), gridExpand=TRUE, stack=TRUE)
+	openxlsx::addStyle(wb, sheet=sheetName, grayTextStyle, rows=(1:nrow(resDf))+1, cols = 8:ncol(resDf), gridExpand=TRUE, stack=TRUE)
 	#
 	borderStyle <- openxlsx::createStyle(border="bottom", borderColour=grayCol)
 	openxlsx::addStyle(wb, sheet=sheetName, borderStyle, rows=calcBottomBorders(resDf, sheetName)+1, cols = 1:ncol(resDf), gridExpand=TRUE, stack=TRUE)
