@@ -17,6 +17,9 @@
 # #' @importFrom easycsv choose_dir
 #' @section Important functions: \code{\link{importData}},
 #' \code{\link{calcIntraInter}},  \code{\link{runFmdenq}}
+#' 
+#' @import methods
+#' 
 #' @docType package
 #' @name fmdenq
 NULL

@@ -84,6 +84,20 @@ checkData <- function(fmddf, filename=NULL, verbose=TRUE) {
 	} # end if verbose
 } # EOF
 
+cleanOutRowsAnyNA <- function(fmddf, verbose) {
+    indEx <- which(apply(fmddf, 1, function(x) any(is.na(x))))
+    if (length(indEx) != 0) {
+    	if (verbose) {
+	    	cat(paste0("The following ", length(indEx), " row(s) were excluded:\n"))
+	    	print(fmddf[indEx,])
+    		cat("\n\n")
+    	} # end if verbose
+    	fmddf <- fmddf[-indEx, ]
+    } # end if
+    #
+    return(fmddf)
+} # EOF
+
 exchangeCharForNumbers <- function(fmddf) {
 	doChange <- function(wChar, wNr, daf) {
 		ind <- which(fmddf$Result == wChar)
@@ -119,14 +133,24 @@ exchangeCharForNumbers <- function(fmddf) {
 #' @export
 importData <- function(fnIn="results_fmd", selIn=FALSE, verbose=TRUE) {
 	fmddf <- importDataFromXlsx(fnIn, selIn) # is assigning !basename fnIn (as it could have been interactively selected as well)
+	fmddf <- cleanOutRowsAnyNA(fmddf, verbose)
 	checkData(fmddf, filename=fnIn, verbose)
 	if (class(fmddf) == "data.frame") {
 		message("Data import successful.")
 	}
 	fmddf <- exchangeCharForNumbers(fmddf)
-	return(fmddf)
+	return(new("fmddf", fmddf))
 } # EOF
 
+#' @title Exclude Single Class Variables
+#' @description Define a column, define a value, and exclude or only include these 
+#' data
+#' @param fmddf A data frame containing FMD data.
+#' @param cn Column name
+#' @param val Value
+#' @param include Logical
+#' @return The dataset modified
+#' @export
 ssc <- function(fmddf, cn, val, include=TRUE) {
 	ind <- which(fmddf[,cn] == val)
 	if (include) {
@@ -141,6 +165,148 @@ resh <- function(fmddf) {
 	out <-  reshape2::dcast(mdf, Patient_ID + Therapist_ID + MuscleTest_ID  ~ Repetition)
 	return(out)
 } # EOF
+
+resh_Inter <- function(fmddf) {
+	fmddf <- resh(fmddf) # has all repetitions in extra columns
+	reps <- fmddf[, -(1:3), drop=FALSE] # keep only the numeric values
+	if (ncol(reps) > 1) { # so we have at least 2 repeated measurements
+		type <- "ICC2k"
+	} else { # so we have only one measurement
+		type <- "ICC2"
+	}
+	repsMean <- apply(reps, 1, mean) # possibly verage together all repeates
+	repsMean <- round(repsMean, 2)
+	meanDf <- cbind(fmddf[, 1:3], repsMean) # we have one column with (possibly) results averaged together
+	#
+	meanResh <- reshape2::melt(meanDf, id.vars=1:3, measure.vars=4)
+	meanResh <- reshape2::dcast(meanResh, Patient_ID  + MuscleTest_ID  ~ Therapist_ID)
+	#
+	out <- new("fmddf_reshInter", meanResh, type=type, nrReps=ncol(reps))
+	return(out)
+} # EOF
+
+resh_Intra <- function(fmddf) {
+	fmddf <- resh(fmddf) # has all repetitions in extra columns
+	therId <- unique(fmddf$Therapist_ID)
+	#
+	if (length(therId) != 1) {
+		stop(paste0("Sorry, the Therapist_ID has to be unique for intra-class calculations"), call.=FALSE)
+	} # end if stop
+	#
+	fmddf <- fmddf[, -2] # kick out the colummn with therpist id
+	#
+	if (ncol(fmddf) == 3) {# that means Patient_ID, MuscleTest_ID and only one more for data
+		stop(paste0("Sorry, you need at least two repetitions (test, re-test) in order to calculate intra-class statistics"), call.=FALSE)
+	} # end if stop
+	#
+	cns <- colnames(fmddf)
+	cnsOld <- cns[1:2] # Patient_ID and MuscleTest_ID
+	cnsNew <- cns[-(1:2)] # has all the repetitions
+	cnsNew <- paste0(therId, "_", cnsNew)
+	colnames(fmddf) <- c(cnsOld, cnsNew)
+	return(new("fmddf_reshIntra", fmddf, type="ICC3", nrReps=ncol(fmddf)-2))
+} # EOF
+
+
+#' @title Get and Display a Subset of the Data
+#' @description Use an expression to provide a definition of a subset of the 
+#' data, reshape the data to either inter- or intra-class analysis, possibly 
+#' print these subset and return it.
+#' @details Use 'colnames(object)' to determine the name of the columns in the 
+#' data frame. (Of course.)
+#' @param fmddf A data frame containing FMD data.
+#' @param expr An expression defining the subset of data. If left at the default 
+#' NULL, no subset of the data is created, but he data is merely reshaped.
+#' @param resh Character length one. What type of reshape should be applied to 
+#' the output. Possible values are 'inter' (default) and 'intra'.
+#' @param showData Logical If the resulting data frame should be printed. Defaults 
+#' to TRUE.
+#' @return A data frame with the subset of data, reshaped for either inter- or 
+#' intra-class analysis.
+#' @examples
+#' \dontrun{
+#' fmddf <- importData()
+#' expr <- expression(Patient_ID == "Pat#2")
+#' showGetData(fmddf, expr)
+#' expr <- expression(Patient_ID == "Pat#2" & Therapist_ID != "Ther#4")
+#' showGetData(fmddf, expr)
+#' }
+showGetData <- function(fmddf, expr=NULL, resh="inter", showData=TRUE) {
+	pv_resh <- c("inter", "intra")
+	#
+	if (class(fmddf) != "fmddf") {
+		stop("Please provide an object of class 'fmddf' to the argument 'fmddf'.", call.=FALSE)
+	} # end if
+	if (!is.expression(expr) & ! is.null(expr)) {
+		stop("Please provide an expression to the argument 'expr'", call.=FALSE)
+	} # end if
+	#
+	if (! resh %in% pv_resh) {
+		stop("Please provide either 'inter' or 'intra' to the argument 'resh'.", call.=FALSE)
+	} # end if
+	#
+	if (!is.null(expr)) {
+		TFsel <- with(fmddf, eval(expr))
+		fmddf <- fmddf[TFsel, ]
+	} # end if
+	
+	if (resh == "inter") {
+		fmddf <- resh_Inter(fmddf)
+	} else { # so it must be intra
+		fmddf <- resh_Intra(fmddf)
+	} # end else 
+	if (showData) {
+		print(fmddf)
+	} # end if
+	return(invisible(fmddf))
+} # EOF
+
+#' @title Calculate ICC for Provided Data
+#' @description Calculate either ICC2 or ICC3 on the provided data, possibly 
+#' print the results and return them.
+#' @section CAVE: It is the users responsibility to decide if ICC2 or ICC3 is 
+#' appropriate for the provided data input. 
+#' @param fmddf A data frame containing FMD data.
+#' @param type Character length one. Can be either 'ICC2' or 'ICC3'. Defaults to 
+#' 'ICC2'.
+#' @param showICC Logical, if the calculated ICC should be printed. Defaults to 
+#' TRUE.
+#' @param showData Logical, if the input-data should be printed as well. Defaults 
+#' to TRUE.
+#' @param expr An expression XXX.
+#' @inheritParams calcIntraInter
+#' @return An (invisible) data frame containing the results of the ICC calculation.
+#' @examples
+#' \dontrun{
+#' XXX
+#' }
+#' @export
+showCalcICC <- function(fmddf, type="ICC2", lmer=FALSE, expr=NULL, showData=TRUE, showICC=TRUE) {
+	rndIcc <- 3
+	rndpVal <- 4
+	#
+	if (class(fmddf) != "fmddf_resh") {
+		fmddf <- resh(fmddf)
+	} # end if
+	#
+	iccList <- calcICC(fmddf, type, useLmer=lmer)
+	icc <- round(iccList$icc, rndIcc)
+	pVal <- round(iccList$pVal, rndpVal)
+	nrJ <- iccList$nrJ
+	nrObs <- iccList$nrObs
+	out <- data.frame(icc, pVal, type, nrJ, nrObs, lmer)
+	colnames(out) <- c("ICC", "p-value", "Type", "nrJ", "nrObs", "lmer")
+	if (showData) {
+		print(fmddf)
+		cat("\n")
+	} # end if
+	if (showICC) {
+		print(out)
+ 		cat("\n\n")
+	} # end if
+	return(invisible(out))
+} # EOF
+
 
 # type from the first column of the results data frame
 calcICC <- function(reshDf, type, useLmer = TRUE) { # ICC2 or ICC3
@@ -165,14 +331,17 @@ assignPValChar <- function(pv) {
 	} # EOF
 
 makeSegment <- function(fmddf, iccType, rnd=3, useLmer=TRUE) {
+	rndPvalue <- 4
+	rndICC <- 3
+	#
 	reshDf <- resh(fmddf)
 	ther <- sort(unique(reshDf$Therapist_ID))
 	pati <- sort(unique(reshDf$Patient_ID))
 	muTe <- sort(unique(reshDf$MuscleTest_ID))
 	#
 	iccList <- calcICC(reshDf, iccType, useLmer)
-	icc <- signif(iccList$icc, rnd)
-	pVal <- signif(iccList$pVal, rnd)
+	icc <- round(iccList$icc, rndICC)
+	pVal <- round(iccList$pVal, rndPvalue)
 	pValChar <- assignPValChar(pVal)
 	nrJ <- iccList$nrJ
 	nrObs <- iccList$nrObs
